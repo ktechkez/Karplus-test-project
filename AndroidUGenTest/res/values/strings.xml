@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">UGen++ Example Test</string>
+    <string name="onOff_name">Audio On/Off</string>
+    <string name="Trigger_name">Trigger</string>
+</resources>
+
+
