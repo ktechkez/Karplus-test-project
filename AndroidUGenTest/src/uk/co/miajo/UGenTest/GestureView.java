@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
@@ -34,7 +35,7 @@ public class GestureView extends View {
         fretPositions = new float[18];
         initView();
         registerCallbackListener(context);
-    }
+    	}
     
     private void initView() {
     	//Simply initialises view elements such as paint, and the pointerPosition array

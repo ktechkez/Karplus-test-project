@@ -36,9 +36,6 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 	private int[] triggers, frequencies, decays; // Store enum equivalent ints in arrays for shorter code
 	private float[] decayAmounts;
 	private float newPositionY = 0.f, lastPositionY = 0.f, strumVelocity = 0.f, neckLength = 0.f;
-	private int strumDirection, strumOldDirection;
-	private boolean strumStart = true, strumAlreadyTriggered;
-	private int returnCheck = 0, strumCount;
 	// match the enum in the C++ code
 	static final int FreqOne = 0;
 	static final int FreqTwo = 1;
@@ -70,7 +67,7 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 	private final float NOISE = (float) 1;
 	
 	private GuitarString[] guitarStrings = new GuitarString[6]; 
-
+	private int guitarStringsAmount;
 	/** Called when the activity is first created. */
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -96,10 +93,12 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 	}
 	
 	private void initStringPitches() {
-		for(int numString = 0; numString < guitarStrings.length; numString++){
+		guitarStringsAmount = guitarStrings.length;
+		for(int numString = 0; numString < guitarStringsAmount; numString++){
 			guitarStrings[numString] = new GuitarString();
+			audioThread.setParameter(frequencies[numString], GuitarUtils.stringFundamentals[numString]);
 			for(int fret = 0; fret < GuitarUtils.NUM_FRETS; fret++) {
-				float pitch = GuitarUtils.calculatePitchForString(numString, fret);
+				float pitch = GuitarUtils.calculatePitchForFret(numString, fret);
 				guitarStrings[numString].setPitchForFret(fret, pitch);
 			}
         }
@@ -141,6 +140,7 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 	private void setNeckLength() {// Calculate the neck length of the guitar
 		Point size = calculateScreenSize();
 		neckLength = (size.x / 3) * 2;
+		Log.d("Sample rate", "Sample rate is " +audioThread.sampleRateInHz);
 	}
 	
 	/*Calculates whether the string in question should be triggered based on
@@ -152,65 +152,13 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 				(stringPosition < lastPosY && stringPosition > newPosY));
 	}
 
-	// Get the direction in the Y-axis on which the user is strumming the
-	// strings
-	private int getStrumDirection(float newPosY, float lastPosY) {
-		if (newPosY > lastPosY)
-			strumDirection = 1;
-		else if (newPosY < lastPosY)
-			strumDirection = 0;
-		return strumDirection;
-	}
-
-	/*
-	 * A confusing one, but this works out whether the strumming occurring is in
-	 * the same direction as the previous strum but not within the same
-	 * movement. For example if the pointer input has been lifted off the screen
-	 * and returned to its initial position in the same direction...IT WORKS!!
-	 */
-	private boolean strumIsSameDirection(float lastPosY, int strumDir) {
-		strumCount = 0;
-		boolean sameDirection = false;
-		boolean loopOver = true;
-		switch (strumDir) {
-		case 1: {
-			do {
-				if (lastPosY < mainView.stringPositions[strumCount] && returnCheck == 0 && strumAlreadyTriggered == false) {
-					sameDirection = true;
-					loopOver = false;
-					returnCheck = 1;
-				}
-				if (loopOver == false)
-					strumCount = 6;
-				strumCount++;
-
-			} while (strumCount <= 5 && strumStart == false);
-			break;
-		}
-		case 0: {
-			do {
-				if (lastPosY > mainView.stringPositions[strumCount] && returnCheck == 0 && strumAlreadyTriggered == false) {
-					sameDirection = true;
-					loopOver = false;
-					returnCheck = 1;
-				}
-				if (loopOver == false)
-					strumCount = 6;
-				strumCount++;
-			} while (strumCount <= 5 && strumStart == false);
-			break;
-		}
-		}
-		return sameDirection;
-	}
-
 	public void onTouchDown(MotionEvent event, int touchID) {// Called when a
 																// touch down
 																// gesture is
 																// received
 		float xCoordinates = event.getX(mainView.getIndex(event));
 		float yCoordinates = event.getY(mainView.getIndex(event));
-		float frequencyAdd = 0;
+		float frequency = 0;
 		// If the slider isn't being used, calculate the frequency and decay
 		// values
 		if (xCoordinates < neckLength && mainView.slideIsActive == false) {
@@ -219,8 +167,8 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 											// each string on guitar
 				if (yCoordinates > (mainView.stringPositions[c] - 40)
 						&& yCoordinates < (mainView.stringPositions[c] + 40)) {
-					frequencyAdd = GuitarUtils.calculateFrequency(guitarStrings, mainView.fretPositions, xCoordinates, c);
-					audioThread.setParameter(frequencies[c], frequencyAdd);
+					frequency = GuitarUtils.calculateFrequency(guitarStrings, mainView.fretPositions, xCoordinates, c);
+					audioThread.setParameter(frequencies[c], frequency);
 					decayAmounts[c] = (xCoordinates / neckLength * 10);
 					audioThread.setParameter(decays[c], decayAmounts[c]);
 				}
@@ -233,31 +181,24 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 															// is received
 		float xCoordinates = event.getX(mainView.getIndex(event));
 		float yCoordinates = event.getY(mainView.getIndex(event));
-		float frequencyAdd = 0, decayReset = 0;
+		float decayReset = 0;
 		if (xCoordinates < neckLength && mainView.slideIsActive == false) {
-			for (int c = 0; c < 6; c++) {// Loop simply resets the respective
-											// string frequency to its
-											// fundamental
+			for (int c = 0; c < guitarStringsAmount; c++) {// Loop simply resets the respective string frequency to its fundamental
 				if (yCoordinates > (mainView.stringPositions[c] - 40)
 						&& yCoordinates < (mainView.stringPositions[c] + 40)) {
-					audioThread.setParameter(frequencies[c], frequencyAdd);
+					audioThread.setParameter(frequencies[c], GuitarUtils.stringFundamentals[c]);
 					audioThread.setParameter(decays[c], decayReset);
 				}
 			}
 		} else if (xCoordinates < neckLength && mainView.slideIsActive == true) {
-			for (int c = 0; c < 6; c++) {// Slide is active but lifted, so set
-											// all string frequencies back to
-											// fundamental
-				audioThread.setParameter(frequencies[c], frequencyAdd);
+			for (int c = 0; c < guitarStringsAmount; c++) {// Slide is active but lifted, so set all string frequencies back to fundamental
+				audioThread.setParameter(frequencies[c], GuitarUtils.stringFundamentals[c]);
 				audioThread.setParameter(decays[c], decayReset);
 			}
 		}
 		if (xCoordinates > neckLength) {// Reset variables used in strumming
 										// functions
 			lastPositionY = 0;
-			returnCheck = 0;
-			strumCount = 0;
-			strumAlreadyTriggered = false;
 		}
 	}
 
@@ -273,58 +214,28 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 			audioThread.setParameter(Pressure, mainView.strumPressure); //Set string pick pressure
 			if (mainView.velocityTrackerExists == true)
 				strumVelocity = Math.abs(mainView.vTracker.getYVelocity(mainView.strumPointer));
-			strumDirection = getStrumDirection(newPositionY, lastPositionY);
-		
-			if (strumVelocity < 2000) {// If the movement velocity is low, calculate as a pick/slow strum action
-				for (int c = 0; c < 6; c++) { // Trigger the respective strings based on movement across string location
-					if (newPositionY != lastPositionY && lastPositionY > 0) {
-						if (shouldTrigger(newPositionY, lastPositionY, mainView.stringPositions[c]))
-							audioThread.sendTrigger(triggers[c]);
+			Log.d("Velocity", "Strum velocity is " +strumVelocity);
+			for (int c = 0; c < guitarStringsAmount; c++) { // Trigger the respective strings based on movement across string location
+				if (newPositionY != lastPositionY && lastPositionY > 0) {
+					if (shouldTrigger(newPositionY, lastPositionY, mainView.stringPositions[c]))
+						audioThread.sendTrigger(triggers[c]);
+					if(strumVelocity > 1000){
+						audioThread.setParameter(Cutoff, strumVelocity+4000);
+						audioThread.setParameter(decays[c], decayAmounts[c] + 2);
 					}
-				}
-			} else if (strumVelocity >= 2000 && lastPositionY != 0) {// If the strum is fast, trigger strings together in one action
-				int stringNum = 0, strumDir = 0;
-				if (newPositionY != lastPositionY) {
-					if (strumDirection != strumOldDirection)
-						strumAlreadyTriggered = true;
-					if (strumDirection != strumOldDirection || 
-						strumIsSameDirection(lastPositionY, strumDirection) == true)
-						strumStart = true;
-					for (int c = 0; c < 6; c++) {
-						if (strumStart == true
-								&& shouldTrigger(newPositionY, lastPositionY, mainView.stringPositions[c])
-								&& getStrumDirection(newPositionY, lastPositionY) == 1) {
-							stringNum = c;
-							strumDir = 1;
-							strumStart = false;
-						} else if (strumStart == true
-								&& shouldTrigger(newPositionY, lastPositionY, mainView.stringPositions[c])
-								&& getStrumDirection(newPositionY, lastPositionY) == 0) {
-							stringNum = c;
-							strumDir = 2;
-							strumStart = false;
-
-						}
-					}
-					if (strumDir == 1) {
-						for (int s = stringNum; s < 6; s++) {
-							audioThread.sendTrigger(triggers[s]);
-						}
-					} else if (strumDir == 2) {
-						for (int s = stringNum; s >= 0; s--) {
-							audioThread.sendTrigger(triggers[s]);
-						}
+					else{
+						audioThread.setParameter(Cutoff, 4000);
+						audioThread.setParameter(decays[c], decayAmounts[c]);
 					}
 				}
 			}
 			lastPositionY = newPositionY;
-			strumOldDirection = strumDirection;
 		}
 		// The below conditions simply amend the frequency values of each string
 		// based on fret hand movement
 		else if (newPointX < neckLength && mainView.slideIsActive == false) {
 			float frequencyAdd;
-			for (int c = 0; c < 6; c++) {
+			for (int c = 0; c < guitarStringsAmount; c++) {
 				if (newPointY > (mainView.stringPositions[c] - 40)
 						&& newPointY < (mainView.stringPositions[c] + 40)) {
 					frequencyAdd = GuitarUtils.calculateFrequency(guitarStrings, mainView.fretPositions, newPointX, c);
@@ -335,10 +246,10 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 				}
 			}
 		} else if (newPointX < neckLength && mainView.slideIsActive == true) {
-			float frequencyAdd;
-			for (int c = 0; c < 6; c++) {
-				frequencyAdd = GuitarUtils.calculateFrequency(guitarStrings, mainView.fretPositions, mainView.slidePoint, c);
-				audioThread.setParameter(frequencies[c], frequencyAdd);
+			float frequency = 0;
+			for (int c = 0; c < guitarStringsAmount; c++) {
+				frequency = GuitarUtils.calculateFrequency(guitarStrings, mainView.fretPositions, mainView.slidePoint, c);
+				audioThread.setParameter(frequencies[c], frequency);
 				decayAmounts[c] = (mainView.slidePoint / neckLength * 10);
 				audioThread.setParameter(decays[c], decayAmounts[c]);
 			}
@@ -381,9 +292,9 @@ public class AndroidUGen extends Activity implements GestureListener, SensorEven
 				if ((decayAmounts[c] + deltaY) > 9)
 					deltaY = 9 - decayAmounts[c];
 			}
-			audioThread.setParameter(Dampening, deltaY);
+			//audioThread.setParameter(Dampening, deltaY);
 			float vibrato = deltaX / 10;
-			audioThread.setParameter(Vibrato, vibrato);
+			//audioThread.setParameter(Vibrato, vibrato);
 		}
 	}
 }

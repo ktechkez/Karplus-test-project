@@ -23,10 +23,9 @@ public class UGenAudio extends Thread
 	 */
 	private int numInChans = 1; // can choose in ctor but not afterwards 
 	final int numOutChans = 1;
-	public static int sampleRateInHz = 22050;
-	
+	public static int sampleRateInHz = AudioTrack.getNativeOutputSampleRate(MAX_PRIORITY);
 	// bufSizeFrames (size of audio buffer passed in from android) 
-	final int bufSizeFrames = 1024;
+	final int bufSizeFrames = 512;
 	final int shortsPerSample = 1; // this is tied to what the NDK code does to pass audio to UGen++, can't change easily.
 	final int bufSizeShorts = bufSizeFrames * numOutChans * shortsPerSample; 
 	final int bufferMultiples = 2;

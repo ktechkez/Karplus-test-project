@@ -13,7 +13,7 @@ public:
 	enum Params { FreqOne = 0, FreqTwo = 1, FreqThree = 2, FreqFour = 3, FreqFive = 4, FreqSix = 5,
 				Cutoff = 6, DecayOne = 7, DecayTwo = 8, DecayThree = 9, DecayFour = 10, DecayFive = 11, DecaySix = 12,
 				TriggerOne = 13, TriggerTwo = 14, TriggerThree = 15, TriggerFour = 16, TriggerFive = 17, TriggerSix = 18,
-				Dampening = 19, Vibrato = 20, Pressure = 21 };
+				Dampening = 19, Vibrato = 20, Pressure = 21};
 
 private:
 	Value freqOne, freqTwo, freqThree, freqFour, freqFive, freqSix;
